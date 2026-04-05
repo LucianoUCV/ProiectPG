@@ -4,10 +4,20 @@
 #include <cmath>
 #include <cstdlib>
 
+// dimensiunile ferestrei
 static int width = 800;
 static int height = 600;
 
-static float angle = 0.0f;
+float camX = 0.0f, camY = 10.0f, camZ = 40.0f;
+float camYaw = -90.0f;
+float camPitch = -15.0f;
+float camSpeed = 0.3f;
+
+bool isDragging = false;
+int lastMouseX = 400, lastMouseY = 300;
+float mouseSensitivity = 0.2f;
+
+bool keys[256] = {false};
 
 GLuint texIarba;
 GLuint texOrizont;
@@ -25,6 +35,7 @@ struct Copac {
 Copac copaci[MAX_COPACI];
 int nrCopaci = 0;
 
+// incarcarea texturilor
 GLuint LoadTexture(const char* filename) {
     GLuint texture;
     glGenTextures(1, &texture);
@@ -53,6 +64,7 @@ GLuint LoadTexture(const char* filename) {
     return texture;
 }
 
+// tranzitia iarba-munte
 float calcAlphaMunte(float x, float z) {
     float mx = x + 40.0f;
     float mz = z + 40.0f;
@@ -67,6 +79,7 @@ float calcAlphaMunte(float x, float z) {
     return 1.0f - (t - 0.5f) / 0.5f;  // fade spre iarba
 }
 
+// denivelarile terenului
 float calculInaltime(float x, float z) {
     float y = 0.0f;
 
@@ -97,6 +110,7 @@ float calculInaltime(float x, float z) {
     return y;
 }
 
+// deseneaza iarba pe teren
 void drawTeren() {
     glBindTexture(GL_TEXTURE_2D, texIarba);
     glColor3f(0.15f, 0.3f, 0.15f);
@@ -124,6 +138,7 @@ void drawTeren() {
     glColor3f(1.0f, 1.0f, 1.0f);
 }
 
+// deseneaza textura de munte peste teren
 void drawMunte() {
     glBindTexture(GL_TEXTURE_2D, texPiatra);
 
@@ -165,6 +180,7 @@ void drawMunte() {
     glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 }
 
+// deseneaza circuitul stradal
 void drawDrum() {
     glBindTexture(GL_TEXTURE_2D, texAsfalt);
     glColor3f(0.9f, 0.9f, 0.9f);
@@ -220,6 +236,7 @@ void drawDrum() {
     glColor3f(1.0f, 1.0f, 1.0f);
 }
 
+// deseneaza bradul
 void drawCopac(float x, float z, float scara) {
     float y = calculInaltime(x, z);
 
@@ -302,6 +319,7 @@ void drawCopac(float x, float z, float scara) {
     glPopMatrix();
 }
 
+// deseneaza peretii orizontului
 void drawSkybox() {
     glBindTexture(GL_TEXTURE_2D, texOrizont);
 
@@ -334,6 +352,7 @@ void drawSkybox() {
     glEnd();
 }
 
+// plasarea brazilor
 void genereazaCopaci() {
     srand(42);
 
@@ -381,16 +400,51 @@ void genereazaCopaci() {
     printf("Generati %d copaci\n", nrCopaci);
 }
 
+// detecteaza cand e apasat mouse-ul
+void mouseClick(int button, int state, int x, int y) {
+    if (button == GLUT_LEFT_BUTTON) {
+        if (state == GLUT_DOWN) {
+            isDragging = true;
+            lastMouseX = x;
+            lastMouseY = y;
+        } else if (state == GLUT_UP) {
+            isDragging = false;
+        }
+    }
+}
+
+// controlul camerei
+void mouseMotionDrag(int x, int y) {
+    if (!isDragging) return;
+
+    float dx = (x - lastMouseX) * mouseSensitivity;
+    float dy = (lastMouseY - y) * mouseSensitivity;
+
+    lastMouseX = x;
+    lastMouseY = y;
+
+    camYaw += dx;
+    camPitch += dy;
+
+    if (camPitch > 89.0f) camPitch = 89.0f;
+    if (camPitch < -89.0f) camPitch = -89.0f;
+}
+
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    float cameraX = 40.0f * sin(angle);
-    float cameraZ = 40.0f * cos(angle);
-    gluLookAt(cameraX, 15.0, cameraZ,
-              0.0, 2.0, 0.0,
+    float yawRad = camYaw * M_PI / 180.0f;
+    float pitchRad = camPitch * M_PI / 180.0f;
+
+    float lookX = camX + cos(pitchRad) * cos(yawRad);
+    float lookY = camY + sin(pitchRad);
+    float lookZ = camZ + cos(pitchRad) * sin(yawRad);
+
+    gluLookAt(camX, camY, camZ,
+              lookX, lookY, lookZ,
               0.0, 1.0, 0.0);
 
     drawSkybox();
@@ -434,15 +488,34 @@ void reshape(int w, int h) {
 }
 
 void idle() {
-    angle += 0.001f;
-    if (angle >= 360.0f) angle -= 360.0f;
+    float yawRad = camYaw * M_PI / 180.0f;
+    float pitchRad = camPitch * M_PI / 180.0f;
+
+    float frontX = cos(pitchRad) * cos(yawRad);
+    float frontY = sin(pitchRad);
+    float frontZ = cos(pitchRad) * sin(yawRad);
+
+    float rightX = cos(yawRad + M_PI / 2.0f);
+    float rightZ = sin(yawRad + M_PI / 2.0f);
+
+    if (keys['w'] || keys['W']) { camX += frontX * camSpeed; camY += frontY * camSpeed; camZ += frontZ * camSpeed; }
+    if (keys['s'] || keys['S']) { camX -= frontX * camSpeed; camY -= frontY * camSpeed; camZ -= frontZ * camSpeed; }
+    if (keys['a'] || keys['A']) { camX -= rightX * camSpeed; camZ -= rightZ * camSpeed; }
+    if (keys['d'] || keys['D']) { camX += rightX * camSpeed; camZ += rightZ * camSpeed; }
+
+    if (keys[' '])  camY += camSpeed;
+    if (keys['q'] || keys['Q']) camY -= camSpeed;
+
     glutPostRedisplay();
 }
 
 void keyboard(unsigned char key, int x, int y) {
-    if (key == 27) {
-        exit(0);
-    }
+    if (key == 27) exit(0);
+    keys[key] = true;
+}
+
+void keyboardUp(unsigned char key, int x, int y) {
+    keys[key] = false;
 }
 
 int main(int argc, char** argv) {
@@ -471,6 +544,11 @@ int main(int argc, char** argv) {
     glutReshapeFunc(reshape);
     glutIdleFunc(idle);
     glutKeyboardFunc(keyboard);
+
+    glutKeyboardUpFunc(keyboardUp);
+
+    glutMouseFunc(mouseClick);
+    glutMotionFunc(mouseMotionDrag);
 
     genereazaCopaci();
 
