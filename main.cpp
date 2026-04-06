@@ -19,6 +19,13 @@ float mouseSensitivity = 0.2f;
 
 bool keys[256] = {false};
 
+// variabile masina
+float masinaX = 25.0f, masinaZ = 0.0f;
+float masinaYaw = 90.0f;
+float masinaSpeed = 0.0f;
+float masinaMaxSpeed = 0.8f;
+bool keySpecial[256] = { false };
+
 GLuint texIarba, texOrizont, texPiatra, texAsfalt, texFrunze, texTrunk;
 
 // pozitia luminii soarelui
@@ -365,6 +372,58 @@ void drawSkybox() {
     glEnable(GL_LIGHTING);
 }
 
+// desenare masina
+void drawMasina() {
+    float hSol = calculInaltime(masinaX, masinaZ);
+
+    glPushMatrix();
+    glTranslatef(masinaX, hSol, masinaZ);
+    glRotatef(masinaYaw, 0.0f, -1.0f, 0.0f);
+
+    glDisable(GL_TEXTURE_2D);
+
+    glColor3f(0.1f, 0.1f, 0.1f);
+    float wheelY = 0.4f;
+    float wheelX = 1.2f;
+    float wheelZ = 0.8f;
+
+    for(int i = -1; i <= 1; i += 2) {
+        for(int j = -1; j <= 1; j += 2) {
+            glPushMatrix();
+            glTranslatef(i * wheelX, wheelY, j * wheelZ);
+            glScalef(0.4f, 0.4f, 0.15f);
+            glutSolidSphere(1.0f, 15, 15);
+            glPopMatrix();
+        }
+    }
+
+    glColor3f(0.8f, 0.1f, 0.1f);
+    glPushMatrix();
+    glTranslatef(0.0f, 0.7f, 0.0f);
+    glScalef(3.4f, 0.6f, 1.4f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    glColor3f(0.15f, 0.15f, 0.15f);
+    glPushMatrix();
+    glTranslatef(-0.2f, 1.2f, 0.0f);
+    glScalef(1.8f, 0.6f, 1.2f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    glColor3f(1.0f, 1.0f, 0.2f);
+    glPushMatrix(); glTranslatef(1.7f, 0.7f,  0.5f); glutSolidSphere(0.15f, 10, 10); glPopMatrix();
+    glPushMatrix(); glTranslatef(1.7f, 0.7f, -0.5f); glutSolidSphere(0.15f, 10, 10); glPopMatrix();
+
+    glColor3f(1.0f, 0.0f, 0.0f);
+    glPushMatrix(); glTranslatef(-1.7f, 0.7f,  0.5f); glutSolidSphere(0.15f, 10, 10); glPopMatrix();
+    glPushMatrix(); glTranslatef(-1.7f, 0.7f, -0.5f); glutSolidSphere(0.15f, 10, 10); glPopMatrix();
+
+    glEnable(GL_TEXTURE_2D);
+    glColor3f(1.0f, 1.0f, 1.0f);
+    glPopMatrix();
+}
+
 // plasarea brazilor
 void genereazaCopaci() {
     srand(42);
@@ -524,6 +583,8 @@ void display() {
         drawStalp(stalpi[s].x, stalpi[s].z, false);
     }
 
+    drawMasina();
+
     glutSwapBuffers();
 }
 
@@ -549,6 +610,31 @@ void idle() {
     if (keys[' '])  camY += camSpeed;
     if (keys['q'] || keys['Q']) camY -= camSpeed;
 
+    // accelerare / franare
+    if (keySpecial[GLUT_KEY_UP]) {
+        masinaSpeed += 0.02f;
+        if (masinaSpeed > masinaMaxSpeed) masinaSpeed = masinaMaxSpeed;
+    } else if (keySpecial[GLUT_KEY_DOWN]) {
+        masinaSpeed -= 0.02f;
+        if (masinaSpeed < -masinaMaxSpeed / 2.0f) masinaSpeed = -masinaMaxSpeed / 2.0f;
+    } else {
+        if (masinaSpeed > 0.0f) masinaSpeed -= 0.01f;
+        if (masinaSpeed < 0.0f) masinaSpeed += 0.01f;
+        if (fabs(masinaSpeed) < 0.01f) masinaSpeed = 0.0f;
+    }
+
+    // viraj
+    if (fabs(masinaSpeed) > 0.0f) {
+        float directie = (masinaSpeed > 0.0f) ? 1.0f : -1.0f;
+        if (keySpecial[GLUT_KEY_LEFT])  masinaYaw -= 2.5f * directie;
+        if (keySpecial[GLUT_KEY_RIGHT]) masinaYaw += 2.5f * directie;
+    }
+
+    // actualizare pozitie
+    float radMasina = masinaYaw * M_PI / 180.0f;
+    masinaX += cos(radMasina) * masinaSpeed;
+    masinaZ += sin(radMasina) * masinaSpeed;
+
     glutPostRedisplay();
 }
 
@@ -558,6 +644,14 @@ void keyboard(unsigned char key, int x, int y) {
 }
 
 void keyboardUp(unsigned char key, int x, int y) { keys[key] = false; }
+
+void specialKeys(int key, int x, int y) {
+    if (key >= 0 && key < 256) keySpecial[key] = true;
+}
+
+void specialKeysUp(int key, int x, int y) {
+    if (key >= 0 && key < 256) keySpecial[key] = false;
+}
 
 int main(int argc, char** argv) {
     glutInit(&argc, argv);
@@ -607,6 +701,9 @@ int main(int argc, char** argv) {
     glutKeyboardUpFunc(keyboardUp);
     glutMouseFunc(mouseClick);
     glutMotionFunc(mouseMotionDrag);
+
+    glutSpecialFunc(specialKeys);
+    glutSpecialUpFunc(specialKeysUp);
 
     genereazaCopaci();
 
