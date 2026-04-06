@@ -3,6 +3,7 @@
 #include <GLUT/glut.h>
 #include <cmath>
 #include <cstdlib>
+#include <vector>
 
 // dimensiunile ferestrei
 static int width = 800;
@@ -25,6 +26,18 @@ float masinaYaw = 90.0f;
 float masinaSpeed = 0.0f;
 float masinaMaxSpeed = 0.8f;
 bool keySpecial[256] = { false };
+
+struct Obstacol {
+    float x, z;
+    float latime, lungime;
+};
+
+std::vector<Obstacol> obstacole;
+
+void adaugaObstacol(float x, float z, float w, float l) {
+    Obstacol obs = { x, z, w, l };
+    obstacole.push_back(obs);
+}
 
 GLuint texIarba, texOrizont, texPiatra, texAsfalt, texFrunze, texTrunk;
 
@@ -129,6 +142,22 @@ void aplicaMatriceUmbra(float punctSol[3], float normala[3], float lumina[4]) {
     shadowMat[3] = -lumina[3] * normala[0]; shadowMat[7] = -lumina[3] * normala[1]; shadowMat[11] = -lumina[3] * normala[2]; shadowMat[15] = dot - lumina[3] * d;
 
     glMultMatrixf(shadowMat);
+}
+
+bool verificaColiziune(float viitorX, float viitorZ) {
+    float masinaW = 2.8f;
+    float masinaL = 2.8f;
+
+    for (const auto& obs : obstacole) {
+        if (viitorX - masinaW/2 < obs.x + obs.latime/2 &&
+            viitorX + masinaW/2 > obs.x - obs.latime/2 &&
+            viitorZ - masinaL/2 < obs.z + obs.lungime/2 &&
+            viitorZ + masinaL/2 > obs.z - obs.lungime/2)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 // deseneaza iarba pe teren
@@ -382,11 +411,12 @@ void drawMasina() {
 
     glDisable(GL_TEXTURE_2D);
 
+    // rotile
+    glDisable(GL_LIGHTING);
     glColor3f(0.1f, 0.1f, 0.1f);
     float wheelY = 0.4f;
     float wheelX = 1.2f;
     float wheelZ = 0.8f;
-
     for(int i = -1; i <= 1; i += 2) {
         for(int j = -1; j <= 1; j += 2) {
             glPushMatrix();
@@ -396,7 +426,9 @@ void drawMasina() {
             glPopMatrix();
         }
     }
+    glEnable(GL_LIGHTING);
 
+    // sasiul
     glColor3f(0.8f, 0.1f, 0.1f);
     glPushMatrix();
     glTranslatef(0.0f, 0.7f, 0.0f);
@@ -404,17 +436,22 @@ void drawMasina() {
     glutSolidCube(1.0f);
     glPopMatrix();
 
+    // cabina
+    glDisable(GL_LIGHTING);
     glColor3f(0.15f, 0.15f, 0.15f);
     glPushMatrix();
     glTranslatef(-0.2f, 1.2f, 0.0f);
     glScalef(1.8f, 0.6f, 1.2f);
     glutSolidCube(1.0f);
     glPopMatrix();
+    glEnable(GL_LIGHTING);
 
+    // faruri
     glColor3f(1.0f, 1.0f, 0.2f);
     glPushMatrix(); glTranslatef(1.7f, 0.7f,  0.5f); glutSolidSphere(0.15f, 10, 10); glPopMatrix();
     glPushMatrix(); glTranslatef(1.7f, 0.7f, -0.5f); glutSolidSphere(0.15f, 10, 10); glPopMatrix();
 
+    // stopuri
     glColor3f(1.0f, 0.0f, 0.0f);
     glPushMatrix(); glTranslatef(-1.7f, 0.7f,  0.5f); glutSolidSphere(0.15f, 10, 10); glPopMatrix();
     glPushMatrix(); glTranslatef(-1.7f, 0.7f, -0.5f); glutSolidSphere(0.15f, 10, 10); glPopMatrix();
@@ -630,10 +667,16 @@ void idle() {
         if (keySpecial[GLUT_KEY_RIGHT]) masinaYaw += 2.5f * directie;
     }
 
-    // actualizare pozitie
     float radMasina = masinaYaw * M_PI / 180.0f;
-    masinaX += cos(radMasina) * masinaSpeed;
-    masinaZ += sin(radMasina) * masinaSpeed;
+    float viitorX = masinaX + cos(radMasina) * masinaSpeed;
+    float viitorZ = masinaZ + sin(radMasina) * masinaSpeed;
+
+    if (!verificaColiziune(viitorX, viitorZ)) {
+        masinaX = viitorX;
+        masinaZ = viitorZ;
+    } else {
+        masinaSpeed = 0.0f;
+    }
 
     glutPostRedisplay();
 }
@@ -706,6 +749,17 @@ int main(int argc, char** argv) {
     glutSpecialUpFunc(specialKeysUp);
 
     genereazaCopaci();
+
+    // inregistrarea stalpilor ca obstacole
+    for (int s = 0; s < nrStalpi; s++) {
+        adaugaObstacol(stalpi[s].x, stalpi[s].z, 0.3f, 0.3f);
+    }
+
+    // inregistrarea copacilor ca obstacole
+    for (int i = 0; i < nrCopaci; i++) {
+        float diametruTrunchi = 0.3f * copaci[i].scara;
+        adaugaObstacol(copaci[i].x, copaci[i].z, diametruTrunchi, diametruTrunchi);
+    }
 
     glutMainLoop();
     return 0;
