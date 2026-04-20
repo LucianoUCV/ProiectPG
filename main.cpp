@@ -20,6 +20,31 @@ float mouseSensitivity = 0.2f;
 
 bool keys[256] = {false};
 
+struct Pasare { float x, y, z, dx, dy, dz; };
+#define NR_PASARI 15
+Pasare pasari[NR_PASARI];
+
+void initPasari() {
+    for (int i = 0; i < NR_PASARI; i++) {
+        pasari[i].x = ((float)rand() / RAND_MAX) * 80.0f - 40.0f;
+        pasari[i].z = ((float)rand() / RAND_MAX) * 80.0f - 40.0f;
+        pasari[i].y = 20.0f + ((float)rand() / RAND_MAX) * 10.0f;
+        // viteze random
+        pasari[i].dx = (((float)rand() / RAND_MAX) - 0.5f) * 0.15f;
+        pasari[i].dy = (((float)rand() / RAND_MAX) - 0.5f) * 0.05f;
+        pasari[i].dz = (((float)rand() / RAND_MAX) - 0.5f) * 0.15f;
+    }
+}
+
+// politia 1
+float politie1Unghi = M_PI;
+float politie1X = -25.0f, politie1Z = 0.0f, politie1Yaw = -90.0f;
+
+// politia 2
+float politie2X = 0.0f, politie2Z = 45.0f;
+float politie2Dir = 1.0f;
+float politie2Yaw = 0.0f;
+
 // variabile masina
 float masinaX = 25.0f, masinaZ = 0.0f;
 float masinaYaw = 90.0f;
@@ -148,15 +173,21 @@ bool verificaColiziune(float viitorX, float viitorZ) {
     float masinaW = 2.8f;
     float masinaL = 2.8f;
 
+    // verificare obstacole statice
     for (const auto& obs : obstacole) {
-        if (viitorX - masinaW/2 < obs.x + obs.latime/2 &&
-            viitorX + masinaW/2 > obs.x - obs.latime/2 &&
-            viitorZ - masinaL/2 < obs.z + obs.lungime/2 &&
-            viitorZ + masinaL/2 > obs.z - obs.lungime/2)
-        {
-            return true;
-        }
+        if (viitorX - masinaW/2 < obs.x + obs.latime/2 && viitorX + masinaW/2 > obs.x - obs.latime/2 &&
+            viitorZ - masinaL/2 < obs.z + obs.lungime/2 && viitorZ + masinaL/2 > obs.z - obs.lungime/2) return true;
     }
+
+    // verificare masini de politie
+    float pW = 3.4f, pL = 3.4f;
+
+    if (viitorX - masinaW/2 < politie1X + pW/2 && viitorX + masinaW/2 > politie1X - pW/2 &&
+        viitorZ - masinaL/2 < politie1Z + pL/2 && viitorZ + masinaL/2 > politie1Z - pL/2) return true;
+
+    if (viitorX - masinaW/2 < politie2X + pW/2 && viitorX + masinaW/2 > politie2X - pW/2 &&
+        viitorZ - masinaL/2 < politie2Z + pL/2 && viitorZ + masinaL/2 > politie2Z - pL/2) return true;
+
     return false;
 }
 
@@ -401,6 +432,69 @@ void drawSkybox() {
     glEnable(GL_LIGHTING);
 }
 
+void drawPasare(float x, float y, float z, float dx, float dz) {
+    glPushMatrix();
+    glTranslatef(x, y, z);
+    float yaw = atan2(dx, dz) * 180.0f / M_PI;
+    glRotatef(yaw, 0.0f, 1.0f, 0.0f);
+
+    glDisable(GL_LIGHTING);
+    glDisable(GL_TEXTURE_2D);
+    glColor3f(0.1f, 0.1f, 0.1f);
+
+    glBegin(GL_TRIANGLES);
+    glVertex3f(0.0f, 0.0f, 0.5f);
+    glVertex3f(-0.5f, 0.0f, -0.5f);
+    glVertex3f(0.0f, 0.0f, -0.2f);
+
+    glVertex3f(0.0f, 0.0f, 0.5f);
+    glVertex3f(0.0f, 0.0f, -0.2f);
+    glVertex3f(0.5f, 0.0f, -0.5f);
+    glEnd();
+
+    glEnable(GL_TEXTURE_2D);
+    glEnable(GL_LIGHTING);
+    glPopMatrix();
+}
+
+void drawMasinaPolitie(float x, float z, float yaw) {
+    float hSol = calculInaltime(x, z);
+    glPushMatrix();
+    glTranslatef(x, hSol, z);
+    glRotatef(yaw, 0.0f, -1.0f, 0.0f);
+
+    glDisable(GL_TEXTURE_2D);
+
+    glDisable(GL_LIGHTING);
+    glColor3f(0.1f, 0.1f, 0.1f);
+    for(int i = -1; i <= 1; i += 2) {
+        for(int j = -1; j <= 1; j += 2) {
+            glPushMatrix();
+            glTranslatef(i * 1.2f, 0.4f, j * 0.8f);
+            glScalef(0.4f, 0.4f, 0.15f);
+            glutSolidSphere(1.0f, 15, 15);
+            glPopMatrix();
+        }
+    }
+    glEnable(GL_LIGHTING);
+
+    glColor3f(0.9f, 0.9f, 0.9f);
+    glPushMatrix(); glTranslatef(0.0f, 0.7f, 0.0f); glScalef(3.4f, 0.6f, 1.4f); glutSolidCube(1.0f); glPopMatrix();
+
+    glDisable(GL_LIGHTING);
+    glColor3f(0.15f, 0.15f, 0.15f);
+    glPushMatrix(); glTranslatef(-0.2f, 1.2f, 0.0f); glScalef(1.8f, 0.6f, 1.2f); glutSolidCube(1.0f); glPopMatrix();
+
+    glColor3f(1.0f, 0.0f, 0.0f);
+    glPushMatrix(); glTranslatef(-0.2f, 1.65f, 0.3f); glScalef(0.4f, 0.2f, 0.4f); glutSolidCube(1.0f); glPopMatrix();
+    glColor3f(0.0f, 0.0f, 1.0f);
+    glPushMatrix(); glTranslatef(-0.2f, 1.65f, -0.3f); glScalef(0.4f, 0.2f, 0.4f); glutSolidCube(1.0f); glPopMatrix();
+    glEnable(GL_LIGHTING);
+
+    glEnable(GL_TEXTURE_2D);
+    glPopMatrix();
+}
+
 // desenare masina
 void drawMasina() {
     float hSol = calculInaltime(masinaX, masinaZ);
@@ -622,6 +716,12 @@ void display() {
 
     drawMasina();
 
+    for (int i = 0; i < NR_PASARI; i++) {
+        drawPasare(pasari[i].x, pasari[i].y, pasari[i].z, pasari[i].dx, pasari[i].dz);
+    }
+    drawMasinaPolitie(politie1X, politie1Z, politie1Yaw);
+    drawMasinaPolitie(politie2X, politie2Z, politie2Yaw);
+
     glutSwapBuffers();
 }
 
@@ -676,6 +776,44 @@ void idle() {
         masinaZ = viitorZ;
     } else {
         masinaSpeed = 0.0f;
+    }
+
+    for (int i = 0; i < NR_PASARI; i++) {
+        pasari[i].x += pasari[i].dx;
+        pasari[i].y += pasari[i].dy;
+        pasari[i].z += pasari[i].dz;
+
+        if (rand() % 100 < 5) {
+            pasari[i].dx += (((float)rand() / RAND_MAX) - 0.5f) * 0.05f;
+            pasari[i].dy += (((float)rand() / RAND_MAX) - 0.5f) * 0.02f;
+            pasari[i].dz += (((float)rand() / RAND_MAX) - 0.5f) * 0.05f;
+        }
+        if (pasari[i].x > 50.0f || pasari[i].x < -50.0f) pasari[i].dx *= -1.0f;
+        if (pasari[i].z > 50.0f || pasari[i].z < -50.0f) pasari[i].dz *= -1.0f;
+        if (pasari[i].y > 40.0f || pasari[i].y < 15.0f) pasari[i].dy *= -1.0f;
+    }
+
+    float viitorP1Unghi = politie1Unghi + 0.01f;
+    float viitorP1X = 25.0f * cos(viitorP1Unghi);
+    float viitorP1Z = 18.0f * sin(viitorP1Unghi);
+
+    float viitorP2X = politie2X + 0.15f * politie2Dir;
+    float viitorP2Z = politie2Z;
+
+    float distP1_Masina = sqrt((viitorP1X - masinaX)*(viitorP1X - masinaX) + (viitorP1Z - masinaZ)*(viitorP1Z - masinaZ));
+    float distP2_Masina = sqrt((viitorP2X - masinaX)*(viitorP2X - masinaX) + (viitorP2Z - masinaZ)*(viitorP2Z - masinaZ));
+
+    if (distP1_Masina > 4.5f) {
+        politie1Unghi = viitorP1Unghi;
+        politie1X = viitorP1X;
+        politie1Z = viitorP1Z;
+        politie1Yaw = atan2(18.0f * cos(politie1Unghi), -25.0f * sin(politie1Unghi)) * 180.0f / M_PI;
+    }
+
+    if (distP2_Masina > 4.5f) {
+        politie2X = viitorP2X;
+        if (politie2X > 15.0f) { politie2Dir = -1.0f; politie2Yaw = 180.0f; }
+        else if (politie2X < -15.0f) { politie2Dir = 1.0f; politie2Yaw = 0.0f; }
     }
 
     glutPostRedisplay();
@@ -749,6 +887,8 @@ int main(int argc, char** argv) {
     glutSpecialUpFunc(specialKeysUp);
 
     genereazaCopaci();
+
+    initPasari();
 
     // inregistrarea stalpilor ca obstacole
     for (int s = 0; s < nrStalpi; s++) {
